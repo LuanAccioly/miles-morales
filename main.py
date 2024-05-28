@@ -1,17 +1,14 @@
 import requests
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import pandas as pd
-import openpyxl
 import os
-from openpyxl import load_workbook
 
 
 def make_content_dir():
     path = "content/"
     if not os.path.exists(path):
-        print("Criando diretório content/")
+        print("Criando diretório 'content'")
         os.makedirs(path)
     else:
         print("Diretório content/ já existe\n\n")
@@ -43,47 +40,54 @@ def get_main_spreadsheet():
     r = requests.get(DOWNLOAD_URL)
 
     open("content/InfoMercado_Dados_Individuais.xlsx", "wb").write(r.content)
-    print("Arquivo salvo em content/InfoMercado_Dados_Individuais.xlsx")
+    print("Arquivo salvo:\t" + "content/InfoMercado_Dados_Individuais.xlsx")
 
 
-def proccess_spreadsheet():
-    spreadsheet_path = "content/InfoMercado_Dados_Individuais.xlsx"
-    caminho_entrada = "content/InfoMercado_Dados_Individuais.xlsx"
-    caminho_saida = "content/007.xlsx"
-    nome_planilha = "007 perfis"
+def proccess_spreadsheet(sheet_name, 
+                         header_row_value, 
+                         footer_row_value):
+    
+    print("Extraindo tabela:\t" + sheet_name)
+    input_path = "content/InfoMercado_Dados_Individuais.xlsx"
+    output_path = "content/" + sheet_name + ".csv"
+    xls = pd.ExcelFile(input_path)
 
-    xls = pd.ExcelFile(spreadsheet_path)
+    df = pd.read_excel(xls, sheet_name, dtype=str)
 
-    df = pd.read_excel(xls, "007 Lista de Perfis", dtype=str)
-
-    linha_inicio = None
+    header_row = None
     for index, row in df.iterrows():
-        if "Cód. Agente" in row.values:
-            linha_inicio = index
+        for value in row.values:
+            if isinstance(value, str) and header_row_value in value:
+                header_row = index + 1
+                break
+
+    footer_row = None
+    for index, row in df.iterrows():
+        if footer_row_value in row.values:
+            footer_row = index
             break
 
-    linha_final = None
-    for index, row in df.iterrows():
-        if "Topo" in row.values:
-            linha_final = index
-            break
-
-    if linha_inicio is not None:
-        header = df.iloc[linha_inicio]
-        tabela = df.iloc[linha_inicio + 1 : linha_final].reset_index(drop=True)
+    if header_row and footer_row is not None:
+        header = df.iloc[header_row]
+        table = df.iloc[header_row + 1 : footer_row].reset_index(drop=True)
     else:
         print("Não foi possível encontrar a linha de início")
+        return
 
     header = header.dropna(how="all")
     header = header.to_numpy()
 
-    tabela = tabela.dropna(how="all")
-    tabela = tabela.dropna(axis=1, how="all")
+    table = table.dropna(how="all")
+    table = table.dropna(axis=1, how="all")
 
-    tabela.to_csv("content/main_table.csv", header=header, index=False)
-
+    table.to_csv(output_path, header=header, index=False)
+    print("Tabela extraída e salva em \t" + output_path)
 
 if __name__ == "__main__":
     make_content_dir()
     get_main_spreadsheet()
-    proccess_spreadsheet()
+    proccess_spreadsheet(
+        "007 Lista de Perfis",
+        "Tabela 001",
+        "Topo"
+    )
