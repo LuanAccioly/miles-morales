@@ -3,6 +3,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import pandas as pd
 import os
+from tqdm import tqdm
 
 
 def make_content_dir():
@@ -22,11 +23,9 @@ def get_main_spreadsheet():
     driver = webdriver.Chrome(options=options)
 
     CCEE_URL = "https://www.ccee.org.br/dados-e-analises/dados-mercado-mensal"
-
     driver.get(CCEE_URL)
 
     cards = driver.find_elements(By.CLASS_NAME, "card")
-
     individual_data_card = None
 
     for card in cards:
@@ -34,14 +33,28 @@ def get_main_spreadsheet():
             individual_data_card = card
             break
 
+    if not individual_data_card:
+        raise ValueError("Card 'Dados Individuais' não encontrado.")
+
     DOWNLOAD_URL = individual_data_card.find_element(By.TAG_NAME, "a").get_attribute(
         "href"
     )
 
     print("Baixando 'InfoMercado_Dados_Individuais.xlsx'")
-    r = requests.get(DOWNLOAD_URL)
 
-    open("content/InfoMercado_Dados_Individuais.xlsx", "wb").write(r.content)
+    response = requests.get(DOWNLOAD_URL, stream=True)
+
+    with open("content/InfoMercado_Dados_Individuais.xlsx", "wb") as file, tqdm(
+        desc="Baixando",
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+    ) as bar:
+        for data in response.iter_content(chunk_size=1024):
+            if data:
+                file.write(data)
+                bar.update(len(data))
+
     print("Arquivo salvo:\t" + "content/InfoMercado_Dados_Individuais.xlsx")
 
 
@@ -168,7 +181,7 @@ def filter_csv_files():
 
 
 if __name__ == "__main__":
-    # make_content_dir()
-    # get_main_spreadsheet()
+    make_content_dir()
+    get_main_spreadsheet()
     extract_csv_files()
     filter_csv_files()
